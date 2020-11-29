@@ -1,0 +1,50 @@
+---
+- name: Chrony first-time configuration
+  hosts: t2_clients
+  remote_user: t2master
+  become: true
+
+  tasks:
+          - name: install chrony
+            dnf:
+                    name: "chrony"
+                    state: latest
+
+          - name: chrony start
+            service: name=chronyd state=started
+
+          - name: install ntpstat
+            dnf:
+                    name: "ntpstat"
+                    state: latest
+
+          - name: delete default NTP servers
+            lineinfile:
+                path: /etc/chrony.conf
+                regexp: "pool 2.centos.pool.ntp.org iburst"
+                state: absent
+
+          - name: add NTP server to chrony.conf
+            lineinfile:
+                path: /etc/chrony.conf
+                insertbefore: "# Record the rate at which the system clock gains/losses time."
+                line: "server ntp.t-2.net iburst"
+                state: present
+            notify:
+                    - restart chrony service
+
+          - name: check if chrony is synchronized
+            shell: ntpstat
+            register: shell_output
+
+
+          - name: sync status
+            debug:
+              msg: "{{ shell_output.stdout }}"
+
+  handlers:
+          - name: restart chrony service
+            service:
+                   name=chronyd
+                   state=restarted
+                   enabled=yes
